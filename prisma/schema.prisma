@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  email         String    @unique
+  password_hash String
+  role          String    @default("ADMIN") // SUPER_ADMIN, ADMIN, KYC_ADMIN, CADRE_ADMIN, RESTRICTED_ADMIN, EXECUTIVE
+  person_id     String?   @unique
+  person        Person?   @relation(fields: [person_id], references: [id], onDelete: SetNull)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+}
+
+model Person {
+  id                  String                 @id @default(cuid())
+  permanent_unique_id String                 @unique
+  full_name           String
+  dob                 DateTime
+  joining_date        DateTime               @default(now())
+  mobile              String
+  whatsapp            String?
+  email               String?
+  address             String
+  team                String?
+  photo_url           String?
+  status              String                 @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  father_or_husband_name String?
+  age                 Int?
+  house_no            String?
+  street              String?
+  village_city        String?
+  mandal              String?
+  district            String?
+  state               String?
+  pincode             String?
+  me_id               String?
+  me_name             String?
+  mm_id               String?
+  mm_name             String?
+  smm_id              String?
+  smm_name            String?
+  agm_id              String?
+  agm_name            String?
+  dgm_id              String?
+  dgm_name            String?
+  gm_id               String?
+  gm_name             String?
+  created_at          DateTime               @default(now())
+  updated_at          DateTime               @updatedAt
+
+  cadre_history       CadreHistory[]
+  reportees           ReportingRelationship[] @relation("ManagerRelation")
+  reporting_to        ReportingRelationship[] @relation("SubordinateRelation")
+  kyc_documents       KycDocument[]
+  id_cards            IdCard[]
+  user                User?
+  enrollments         Enrollment[]
+  whatsapp_messages   WhatsAppMessage[]
+}
+
+model Cadre {
+  id              String         @id @default(cuid())
+  name            String         @unique // Executive, Manager, GM, ED, CED
+  level           Int            @default(1) // 1=Junior, 2=Executive, 3=Manager, 4=GM, 5=ED, 6=CED
+  is_confidential Boolean        @default(false) // true for CED
+  created_at      DateTime       @default(now())
+
+  cadre_history   CadreHistory[]
+  enrollments     Enrollment[]
+}
+
+model CadreHistory {
+  id             String    @id @default(cuid())
+  person_id      String
+  person         Person    @relation(fields: [person_id], references: [id], onDelete: Cascade)
+  cadre_id       String
+  cadre          Cadre     @relation(fields: [cadre_id], references: [id])
+  joining_date   DateTime
+  promotion_date DateTime?
+  start_date     DateTime  @default(now())
+  end_date       DateTime?
+  is_current     Boolean   @default(true)
+  changed_by     String?
+  remarks        String?
+  created_at     DateTime  @default(now())
+
+  @@index([person_id])
+  @@index([cadre_id])
+  @@index([is_current])
+}
+
+model ReportingRelationship {
+  id                  String    @id @default(cuid())
+  person_id           String
+  person              Person    @relation("SubordinateRelation", fields: [person_id], references: [id], onDelete: Cascade)
+  reporting_person_id String
+  reporting_person    Person    @relation("ManagerRelation", fields: [reporting_person_id], references: [id], onDelete: Cascade)
+  effective_from      DateTime  @default(now())
+  effective_to        DateTime?
+  is_current          Boolean   @default(true)
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  @@index([person_id])
+  @@index([reporting_person_id])
+  @@index([is_current])
+}
+
+model Enrollment {
+  id                  String         @id @default(cuid())
+  application_number  String         @unique
+  full_name           String
+  joining_date        DateTime?
+  dob                 DateTime?
+  mobile              String
+  whatsapp            String?
+  email               String?
+  address             String
+  requested_cadre_id  String
+  requested_cadre     Cadre          @relation(fields: [requested_cadre_id], references: [id])
+  team                String?
+  reporting_person_id String?
+  status              String         @default("PENDING_REVIEW") // PENDING_REVIEW, UNDER_REVIEW, APPROVED, REJECTED, CORRECTION_REQUIRED, ID_CARD_GENERATED
+  rejection_reason    String?
+  correction_reason   String?
+  submitted_at        DateTime?
+  reviewed_at         DateTime?
+  reviewed_by         String?
+  person_id           String?
+  person              Person?        @relation(fields: [person_id], references: [id], onDelete: SetNull)
+
+  father_or_husband_name String?
+  age                 Int?
+  house_no            String?
+  street              String?
+  village_city        String?
+  mandal              String?
+  district            String?
+  state               String?
+  pincode             String?
+
+  me_id               String?
+  me_name             String?
+  mm_id               String?
+  mm_name             String?
+  smm_id              String?
+  smm_name            String?
+  agm_id              String?
+  agm_name            String?
+  dgm_id              String?
+  dgm_name            String?
+  gm_id               String?
+  gm_name             String?
+
+  declaration_confirmed Boolean      @default(false)
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+
+  kyc_documents       KycDocument[]
+
+  @@index([status])
+}
+
+model KycDocument {
+  id                     String      @id @default(cuid())
+  person_id              String?
+  person                 Person?     @relation(fields: [person_id], references: [id], onDelete: Cascade)
+  enrollment_id          String?
+  enrollment             Enrollment? @relation(fields: [enrollment_id], references: [id], onDelete: Cascade)
+  document_type          String      // PHOTO, AADHAAR_FRONT, AADHAAR_BACK, PAN
+  document_number_masked String?     // e.g. "XXXX XXXX 1234", "XXXXX1234X"
+  document_hash          String?
+  file_path              String
+  file_name              String?
+  file_size              Int
+  mime_type              String      @default("application/pdf")
+  version                Int         @default(1)
+  status                 String      @default("PENDING") // PENDING, UNDER_REVIEW, APPROVED, REJECTED, CORRECTION_REQUIRED
+  remarks                String?
+  uploaded_at            DateTime    @default(now())
+  reviewed_at            DateTime?
+  reviewed_by            String?
+
+  @@index([person_id])
+  @@index([enrollment_id])
+  @@index([document_type])
+}
+
+model IdSequence {
+  id            String   @id @default(cuid())
+  series_name   String   @unique // "DEFAULT", "LEGACY_SERIES"
+  prefix        String   @default("JB")
+  current_value Int      @default(1000)
+  pattern       String   @default("{PREFIX}{YEAR}{SERIAL:4}") // or "{PREFIX}{SERIAL}"
+  is_active     Boolean  @default(true)
+  updated_at    DateTime @updatedAt
+}
+
+model IdCard {
+  id            String   @id @default(cuid())
+  person_id     String
+  person        Person   @relation(fields: [person_id], references: [id], onDelete: Cascade)
+  card_number   String
+  version       Int      @default(1)
+  file_path     String
+  qr_code_data  String?
+  is_active     Boolean  @default(true)
+  generated_at  DateTime @default(now())
+  generated_by  String?
+
+  @@index([person_id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String?
+  user_name   String?
+  user_role   String?
+  action      String   // LOGIN, ENROLLMENT_APPROVED, CADRE_UPGRADE, etc.
+  entity_type String   // PERSON, ENROLLMENT, CADRE, ID_CARD, CED, etc.
+  entity_id   String?
+  ip_address  String?
+  user_agent  String?
+  details     String?  // JSON string
+  created_at  DateTime @default(now())
+
+  @@index([action])
+  @@index([entity_type])
+  @@index([entity_id])
+  @@index([created_at])
+}
+
+model WhatsAppMessage {
+  id                  String    @id @default(cuid())
+  person_id           String?
+  person              Person?   @relation(fields: [person_id], references: [id], onDelete: SetNull)
+  recipient_phone     String
+  template_name       String
+  media_url           String?
+  status              String    @default("QUEUED") // QUEUED, SENT, DELIVERED, READ, FAILED
+  error_message       String?
+  external_message_id String?
+  retry_count         Int       @default(0)
+  sent_at             DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  @@index([status])
+  @@index([person_id])
+}
